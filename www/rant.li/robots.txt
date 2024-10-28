@@ -1,0 +1,4 @@
+User-Agent: *
+Allow: /
+Disallow: /cdn-cgi/
+Sitemap: https://www.rant.li/sitemap.xml
