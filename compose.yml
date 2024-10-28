@@ -1,0 +1,62 @@
+services:
+  rantli-web:
+    container_name: "rantli-web"
+    build:
+      context: https://github.com/writefreely/writefreely.git
+      dockerfile: Dockerfile.prod
+    volumes:
+      - "${WRITEFREELY_DATA_DIR}/keys:/var/lib/writefreely/keys"
+      - "${WRITEFREELY_DATA_DIR}/config.ini:/etc/writefreely/config.ini"
+    networks:
+      - "internal_rantli"
+      - "external_rantli"
+    ports:
+      - "${WRITEFREELY_IP}:${WRITEFREELY_PORT}:8080"
+    depends_on:
+      - "rantli-db"
+    restart: unless-stopped
+
+  rantli-db:
+    container_name: "rantli-db"
+    image: "${MARIADB_IMAGE}"
+    volumes:
+      - "db-data:/var/lib/mysql/data"
+      - "./backup:/mariadb_backup_files"
+    networks:
+      - "internal_rantli"
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    restart: unless-stopped
+
+  caddy:
+    container_name: caddy
+    build:
+      context: .
+      dockerfile: Dockerfile-caddy
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./www:/var/www
+      - caddy_data:/data
+      - caddy_config:/config
+      - /var/log/caddy:/var/log/caddy
+      restart: unless-stopped
+
+volumes:
+  db-data:
+  caddy_data:
+    external: true
+  caddy_config:
+
+networks:
+  external_rantli:
+  internal_rantli:
+    internal: true
