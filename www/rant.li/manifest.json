@@ -1,0 +1,15 @@
+{
+  "name": "Rant.li",
+  "start_url": "https://www.rant.li",
+  "display": "standalone",
+  "theme_color": "#888888",
+  "background_color": "#888888",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "any"
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": []
+}
