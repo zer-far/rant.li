@@ -40,7 +40,7 @@ www.rant.li:443 {
         redir https://rant.li{uri}
 }
 
-:8000, rant.li:443 {
+:8081, rant.li:443 {
         import waf
         replace {
                 # extras
