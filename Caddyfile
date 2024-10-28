@@ -1,0 +1,110 @@
+{
+        order coraza_waf first
+        order replace after encode
+        order cache before rewrite
+        servers {
+                trusted_proxies cloudflare
+                timeouts {
+                        idle 10s
+                        read_body 10s
+                        read_header 10s
+                }
+                max_header_size 4KB
+                client_ip_headers Cf-Connecting-Ip
+        }
+}
+
+(waf) {
+        coraza_waf {
+                load_owasp_crs
+                directives `
+                Include @coraza.conf-recommended
+                Include @crs-setup.conf.example
+                Include @owasp_crs/*.conf
+                SecRuleEngine On
+                `
+        }
+
+        handle_errors 403 {
+                header X-Blocked "true"
+                header X-Forwarded-For "{http.request.header.CF-Connecting-IP}"
+                respond <<EOF
+                Your request was blocked.
+                IP address: {http.request.header.CF-Connecting-IP}
+                Request ID: {uuid}
+                EOF
+        }
+}
+
+www.rant.li:443 {
+        redir https://rant.li{uri}
+}
+
+:8000, rant.li:443 {
+        import waf
+        replace {
+                # extras
+                `</head>` `<link rel="apple-touch-icon" href="/favicon.ico"><link rel="manifest" href="manifest.json" /><script defer data-domain="rant.li" src="https://plausible.farid.top/js/script.js"></script></head>`
+                # load javascript asynchronously
+                `<script type="text/javascript" src="/js/h.js"></script>` `<script type="text/javascript" src="/js/h.js" defer></script>`
+                # load css asynchronously
+                # `<link rel="stylesheet" type="text/css" href="/css/write.css" />` `<link rel="stylesheet" href="/css/write.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="/css/write.css"></noscript>`
+        }
+        root * /var/www/rant.li/
+        @custom {
+                not {
+                        path /robots.txt
+                        path /sitemap.xml
+                        path /manifest.json
+                }
+        }
+        file_server
+        reverse_proxy @custom http://127.0.0.1:8080
+        encode zstd gzip
+        handle / {
+                header Cache-Control "max-age=3600"
+        }
+        @loggedIn {
+                path /me/*
+                path /admin
+                path /admin/*
+                path /new
+        }
+        handle @loggedIn {
+                header Cache-Control "private"
+        }
+        @reader {
+                path /read
+                path /read/*
+        }
+        handle @reader {
+                header {
+                        Content-Security-Policy "default-src 'self'; script-src 'self' plausible.farid.top static.cloudflareinsights.com; connect-src plausible.farid.top 'self'; style-src 'self' 'unsafe-inline';"
+                        Cache-Control "max-age=3600, public"
+                }
+        }
+        header {
+                Onion-Location rantlintvgmbpmsdvrotzaa2opolz5is5ki5p3xqcof45cqdrkkhh6id.onion
+                Content-Security-Policy "default-src 'self' data:; script-src plausible.farid.top 'self' 'unsafe-inline' static.cloudflareinsights.com; connect-src plausible.farid.top 'self'; img-src 'self' https: http: data:; style-src 'self' 'unsafe-inline'; frame-src http: https:;"
+                Cache-Control "max-age=86400, public"
+                # enable HSTS
+                Strict-Transport-Security max-age=15768000
+                # disable FLoC tracking
+                Permissions-Policy interest-cohort=()
+                # enable cross-site filter (XSS) and tell browser to block detected attacks
+                X-Frame-Options "Deny"
+                # disable clients from sniffing the media type
+                X-Content-Type-Options nosniff
+                # clickjacking protection
+                X-Frame-Options DENY
+                # keep referrer data off of HTTP connections
+                Referrer-Policy no-referrer
+        }
+        log {
+                output file /var/log/caddy/rant.li.log {
+                        roll_size 50mb
+                        roll_keep 5
+                        roll_keep_for 168h
+                }
+        }
+}
